@@ -2,8 +2,8 @@
 var fs       = require('fs'),
     mongo    = require('mongodb'),
     ObjectID = require('bson').ObjectID,
-  	async	 = require('async'),
-  	_		 = require('underscore');
+    async    = require('async'),
+    _        = require('underscore');
 
 
 /**
@@ -37,7 +37,7 @@ exports.connect = function(dbName, options) {
  * Loader constructor
  * 
  * @param {String}  Database name
- * @param {Object}  Connection options: host ('localhost'), port (27017)
+ * @param {Object}  Connection options: host ('localhost'), port (27017), username ('username'), password ('password')
  */
 var Loader = exports.Loader = function(dbName, options) {
     options = options || {};
@@ -46,7 +46,13 @@ var Loader = exports.Loader = function(dbName, options) {
         port = options.port || 27017;
     
     //Connect
-    this.db = new mongo.Db(dbName, new mongo.Server(host, port, {}));
+    this.db = new mongo.Db(dbName, new mongo.Server(host, parseInt(port), {})); //ADDITION ADDED PARSE INT CDOLIVARES
+
+    //TODO: Warn user when only a username or password is supplied
+    if(options.username != null && options.password != null){
+        this.username = options.username;
+        this.password = options.password;
+    }
 
     // Modifiers
     this.modifiers = [];
@@ -176,12 +182,12 @@ Loader.prototype.clearAllAndLoad = function(fixtures, cb) {
     var self = this;
     
     self.clear(function(err) {
-	    if (err) return cb(err);
+        if (err) return cb(err);
 
-	    self.load(fixtures, function(err) {
-	        cb(err);
-	    });
-	});
+        self.load(fixtures, function(err) {
+            cb(err);
+        });
+    });
 };
 
 
@@ -202,10 +208,10 @@ Loader.prototype.clearAndLoad = function(fixtures, cb) {
         var collections = Object.keys(objData);
         
         self.clear(collections, function(err) {
-    	    if (err) return cb(err);
+            if (err) return cb(err);
 
-    	    _loadData(self, objData, cb);
-    	});
+            _loadData(self, objData, cb);
+        });
     });
 };
 
@@ -227,9 +233,25 @@ var _connect = function(loader, cb) {
   
   loader.db.open(function(err, client) {
     if (err) return cb(err);
-    
-    loader.client = client;
-    cb(null, client);
+
+    //ADDITIONS BY CDOLIVARES.
+    if(loader.username != null && loader.password != null) {
+
+      client.authenticate("bigDojo", "%%teatree4600", function(err, success){
+        if(err) return cb(err);
+        if(success){
+          loader.client = client;
+          cb(null, client);
+        } else {
+          return cb(new Error('Unspecified db error'));
+        }
+
+    });   
+
+    } else {
+      loader.client = client;
+      cb(null, client);
+    }
   });
 };
 
@@ -242,16 +264,16 @@ var _connect = function(loader, cb) {
  * @param {Function}     Callback(err)
  * @api private
  */
-var _loadData = function(loader, data, cb) {	
-	cb = cb || noop;
-	
-	var collectionNames = Object.keys(data);
-	
-	_connect(loader, function(err, db) {
-		if (err) return cb(err);
-		
-		async.forEach(collectionNames, function(collectionName, cbForEachCollection) {
-			var collectionData = data[collectionName];
+var _loadData = function(loader, data, cb) {    
+    cb = cb || noop;
+    
+    var collectionNames = Object.keys(data);
+    
+    _connect(loader, function(err, db) {
+        if (err) return cb(err);
+        
+        async.forEach(collectionNames, function(collectionName, cbForEachCollection) {
+            var collectionData = data[collectionName];
 
       //Convert object to array
       var items;
@@ -289,8 +311,8 @@ var _loadData = function(loader, data, cb) {
           collection.insert(modifiedItems, { safe: true }, cbForEachCollection);
         });
       });
-		}, cb);
-	});
+        }, cb);
+    });
 };
 
 
